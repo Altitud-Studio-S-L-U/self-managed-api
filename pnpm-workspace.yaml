@@ -1,2 +1,6 @@
 # Do not execute dependency lifecycle scripts during installation.
 allowBuilds: {}
+
+# Keep the TUF dependency off GHSA-g3hv-75wg-m249 until its upstream range advances.
+overrides:
+  '@tufjs/models@4.1.1>minimatch': 11.0.4
