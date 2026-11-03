@@ -37,7 +37,7 @@ No project account, license token or hosted control server is required. The proj
 | Change observation | Observe registered local or explicitly authorized HTTP sources, record evidence transitions, and maintain local jobs and history. |
 | Migration proposals | Prepare source previews from reviewed recipes; optionally request a proposal from an operator-configured model. Bind review decisions to the captured proposal. |
 | Isolated validation | Run selected, unchanged tests against original and candidate copies using prepared Linux x64 Docker profiles. |
-| GitHub publication | Prepare a Git-bound publication candidate and publish a draft pull request after a separate approval. |
+| GitHub publication | Prepare a Git-bound publication candidate and publish a draft pull request to a private, writable, active, non-fork GitHub repository after a separate approval. |
 | Dependency evidence | Inspect npm lockfile dependencies and compare them with an explicitly supplied advisory catalog. |
 
 The public SDK exports are listed in [src/index.ts](src/index.ts). Detailed contracts and operating procedures are maintained in the [technical guide](docs/technical-guide.pdf), with an [HTML source](docs/technical-guide.html).
@@ -92,6 +92,7 @@ Install the resulting tarball in the consuming application. See the [guide](docs
 - HTTP observation is explicitly enabled; registering a local HTTP policy does not itself fetch a source.
 - Model inference uses an operator-configured local model or provider credentials. Remote disclosure has an explicit authorization boundary.
 - Model use, test execution and draft PR publication each require their own approval. CLI approval commands confirm the exact request identifier in a terminal.
+- GitHub publication requires a private destination on `github.com`, with push permission, that is neither archived, disabled nor a fork. Public repositories and GitHub Enterprise hosts are not supported publication destinations. Local candidate preparation does not verify remote eligibility; `publication-review --github` performs that check before approval.
 - SDK approval functions trust their caller; they do not authenticate a human reviewer. Applications embedding the SDK own that boundary.
 - Validation runs approved tests against separate captured copies. It does not change the live consumer checkout.
 - Native service manifests are generated for review. Generating a manifest does not install a service or grant code execution.
@@ -150,6 +151,8 @@ See the [technical guide](docs/technical-guide.html) for release inputs, platfor
 ## Contributing
 
 Read [AGENTS.md](AGENTS.md) for repository conventions. Submit changes through a pull request against `main`, preserve valid tests, and describe the behavior and validation relevant to the change.
+
+Report suspected vulnerabilities through the private channel described in [SECURITY.md](SECURITY.md).
 
 ## License
 

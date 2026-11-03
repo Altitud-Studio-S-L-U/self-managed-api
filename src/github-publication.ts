@@ -196,7 +196,7 @@ export function createGitHubPublicationAdapter(options: GitHubPublicationOptions
       }, false, input.expiresAt);
       const pr = pullRequest(response, input.snapshot);
       if (!pr.draft || pr.state !== 'open' || pr.headBranch !== input.headBranch || pr.baseBranch !== input.baseBranch
-        || pr.title !== input.title || pr.body !== input.body) failed('GitHub draft pull request differs from the approved request.');
+        || pr.headSha !== input.commitSha || pr.title !== input.title || pr.body !== input.body) failed('GitHub draft pull request differs from the approved request.');
       return pr;
     },
     async readBranch(input) { await verifyIdentity(input.snapshot); return readBranch(input.snapshot, input.branch); },

@@ -136,12 +136,12 @@ self-managed-api runtime prepare maven-junit --output /private/maven.json</pre>
 <section class="page">
 <div class="label">Publicación opcional en GitHub</div>
 <h1>Del resultado a una PR en borrador</h1>
-<p>La publicación es opcional y utiliza el repositorio y las credenciales del usuario. Una aprobación de tests no concede permiso de escritura Git. El adaptador crea una rama y PR en borrador con el cambio exacto revisado; no hace merge ni despliega.</p>
+<p>La publicación es opcional y exige un repositorio privado en github.com, con permiso de escritura, activo y que no sea un fork. No admite destinos públicos ni GitHub Enterprise. Una aprobación de tests no concede escritura Git. El adaptador crea una rama y PR en borrador con el cambio exacto revisado; no hace merge ni despliega.</p>
 <pre>self-managed-api publication-plan INTENT_ID \
   --state /private/self-managed-api-state \
   --git /usr/bin/git --engine /opt/self-managed-api/oasdiff \
   --repository OWNER/REPO --base main --json</pre>
-<p>Este comando construye un candidato local ligado a Git. No contacta GitHub ni comprueba la base remota. El ejecutable Git debe aceptar --no-lazy-fetch para evitar adquisiciones implícitas al inspeccionar objetos.</p>
+<p>Este comando construye un candidato local ligado a Git. No contacta GitHub ni comprueba la base remota o la elegibilidad del destino; publication-review --github verifica ambas antes de aprobar. Git debe aceptar --no-lazy-fetch para evitar adquisiciones implícitas al inspeccionar objetos.</p>
 <h2>Permisos separados</h2><ol><li>Revisar el candidato y las diferencias exactas.</li><li>Preparar la solicitud de publicación mediante el adaptador GitHub, con identidad de autor explícita.</li><li>Confirmar publication-approve para esa solicitud y consumidor.</li><li>Ejecutar publication-publish con el recibo, la solicitud y --github.</li><li>Si el resultado es incierto, reconciliar la misma solicitud antes de intentar otra escritura.</li></ol>
 <p>publication-review, publication-publish y publication-reconcile requieren --github y GH_TOKEN configurado localmente. Conceder únicamente los permisos necesarios para el repositorio y sus PR. Nunca entregar el token en URLs, archivos de ejemplo o argumentos que se registren públicamente.</p>
 <table><tr><th>Código</th><th>Interpretación</th></tr><tr><td>0</td><td>Publicación verificada o resultado completado según el comando.</td></tr><tr><td>1</td><td>Conflicto que requiere revisión.</td></tr><tr><td>2</td><td>Incertidumbre, autorización inválida o fallo. No asumir que no hubo escritura.</td></tr></table>
