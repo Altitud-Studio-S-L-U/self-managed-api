@@ -11,6 +11,7 @@ import { approveJobValidation, prepareJobValidation, queueJobValidation } from '
 import { prepareJobPublicationCandidate } from '../dist/publication-plan.js';
 import { preparePublicationRequest } from '../dist/publication-runner.js';
 import { persistValidationOutcome } from '../dist/validation-outcome.js';
+import { MAVEN_FIXTURE_POM, runtimeRecipeSha256 } from '../dist/validation-runtime.js';
 import { observeOnce, registerLocalSubscription } from '../dist/worker.js';
 import { openWorkerStore } from '../dist/worker-store.js';
 
@@ -41,7 +42,7 @@ function git(consumerRoot, args) {
   return result.stdout.trim();
 }
 
-async function fixture(t, { beforeObservation } = {}) {
+async function fixture(t, { beforeObservation, testPaths = ['orders.test.mjs'], runtime } = {}) {
   await mkdir(work, { recursive: true });
   const directory = await mkdtemp(join(work, 'case-'));
   t.after(async () => {
@@ -64,7 +65,7 @@ async function fixture(t, { beforeObservation } = {}) {
   const jobId = (await observeOnce({ statePath, enginePath })).results[0].jobId;
   assert.ok(jobId);
   const recipe = JSON.parse(await readFile(join(root, 'fixtures/validation-recipe.json'), 'utf8'));
-  const input = { statePath, jobId, enginePath, recipe, testPaths: ['orders.test.mjs'] };
+  const input = { statePath, jobId, enginePath, recipe, testPaths, ...(runtime ? { runtime } : {}) };
   const request = await prepareJobValidation(input);
   const receipt = await approveJobValidation({ ...input, expectedRequestId: request.id, origin: 'explicit-sdk-caller' });
   const { intent } = await queueJobValidation({ ...input, receiptId: receipt.id });
@@ -212,6 +213,44 @@ test('a simulated improved outcome retains the baseline failure in the proposed 
   assert.match(candidate.pullRequest.body, /improved|baseline[^\n]{0,100}fail/iu);
   assert.equal(candidate.authorization, 'not-granted');
 });
+
+for (const kind of ['pytest', 'maven-junit']) {
+  test(`${kind} publication retains the approved runtime and rejects changed runtime evidence`, async t => {
+    // These runtime IDs and selected files exercise the publication gate, not Docker execution.
+    const runtime = { schemaVersion: 1, kind, imageId: `sha256:${'a'.repeat(64)}`,
+      recipeSha256: runtimeRecipeSha256(kind), dependenciesSha256: 'b'.repeat(64) };
+    const testPath = kind === 'pytest' ? 'test_orders.py' : 'src/test/java/OrdersTest.java';
+    const context = await fixture(t, { runtime, testPaths: [testPath], beforeObservation: async consumerRoot => {
+      if (kind === 'maven-junit') {
+        await mkdir(join(consumerRoot, 'src/test/java'), { recursive: true });
+        await writeFile(join(consumerRoot, 'pom.xml'), MAVEN_FIXTURE_POM);
+      }
+      await writeFile(join(consumerRoot, testPath), kind === 'pytest'
+        ? 'def test_fixture():\n    assert True\n'
+        : 'import org.junit.jupiter.api.Test;\nclass OrdersTest { @Test void fixture() {} }\n');
+      git(consumerRoot, ['add', '--all']);
+      git(consumerRoot, ['commit', '-m', 'Add controlled framework fixture']);
+    } });
+    assert.deepEqual(context.intent.runtime, runtime);
+    await completeSimulation(context);
+    const before = await treeContents(context.consumerRoot);
+    const candidate = await prepareJobPublicationCandidate(context.publication);
+    assert.equal(candidate.validation.requestId, context.request.id);
+    assert.equal(candidate.evidence.executionDigest, context.request.executionDigest);
+    assert.equal(candidate.evidence.policyDigest, context.request.policyDigest);
+    assert.equal(candidate.authorization, 'not-granted');
+    assert.equal(candidate.publication, 'not-started');
+    assert.deepEqual(await treeContents(context.consumerRoot), before);
+    for (const changed of [null, { ...runtime, imageId: `sha256:${'c'.repeat(64)}` }, { ...runtime, dependenciesSha256: 'd'.repeat(64) }]) {
+      const database = new DatabaseSync(join(context.input.statePath, 'worker.sqlite3'));
+      try {
+        database.prepare('UPDATE execution_intents SET runtime_json=? WHERE id=?')
+          .run(changed === null ? null : JSON.stringify(changed), context.intent.id);
+      } finally { database.close(); }
+      await assert.rejects(prepareJobPublicationCandidate(context.publication), /validated request changed/u);
+    }
+  });
+}
 
 test('repository and base branch are bound to candidate identity', async t => {
   const context = await fixture(t);

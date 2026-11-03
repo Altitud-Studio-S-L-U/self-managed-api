@@ -61,12 +61,17 @@ try {
   }));
   // Reuse reviewed transitive versions; only this temporary consumer's importer changes to the tarball.
   await copyFile(join(root, 'pnpm-lock.yaml'), join(consumer, 'pnpm-lock.yaml'));
-  run([pnpmPath, 'install', '--offline', '--ignore-scripts', '--ignore-workspace', '--no-frozen-lockfile'], consumer);
+  // Dependency overrides do not propagate from an installed library. This consumer
+  // explicitly adopts the documented root policy, including the TUF matcher fix.
+  await copyFile(join(root, 'pnpm-workspace.yaml'), join(consumer, 'pnpm-workspace.yaml'));
+  // Its own workspace file anchors this consumer's policy; --ignore-workspace would discard it.
+  run([pnpmPath, 'install', '--offline', '--ignore-scripts', '--no-frozen-lockfile'], consumer);
   await copyFile(join(root, 'fixtures', 'orders-v1.json'), join(consumer, 'base.json'));
   await copyFile(join(root, 'fixtures', 'orders-v2.json'), join(consumer, 'revision.json'));
   await writeFile(join(consumer, 'use-sdk.mjs'), `
 import assert from 'node:assert/strict';
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareOpenApi, compareMcpCatalogs, compareJsonSchemas, prepareModelProposal, runWorkerLoop, normalizeIntegrationManifest, preparePublicationRequest, createGitHubPublicationAdapter, observeSourcesOnce, loadNpmDependencyInventory, prepareHttpSource, captureHttpSource, analyzeMcpImpact, registerHttpSubscription, registerHttpSourceSubscription, runWorkerService, normalizeWorkerServiceConfig, renderWorkerServiceManifest } from 'self-managed-api';
@@ -87,6 +92,26 @@ const entry = await realpath(fileURLToPath(import.meta.resolve('self-managed-api
 const location = relative(installed, entry);
 assert.ok(location && !isAbsolute(location) && location !== '..' && !location.startsWith('..' + sep),
   'The SDK must resolve from the installed consumer package.');
+const tufEntry = createRequire(entry).resolve('tuf-js');
+const modelsEntry = createRequire(tufEntry).resolve('@tufjs/models');
+const matcherManifest = createRequire(modelsEntry).resolve('minimatch/package.json');
+for (const dependency of [tufEntry, modelsEntry, matcherManifest]) {
+  const dependencyLocation = relative(installed, await realpath(dependency));
+  assert.ok(dependencyLocation && !isAbsolute(dependencyLocation) && dependencyLocation !== '..'
+    && !dependencyLocation.startsWith('..' + sep), 'TUF dependencies must resolve inside this installed consumer.');
+}
+assert.equal(JSON.parse(await readFile(matcherManifest, 'utf8')).version, '11.0.4',
+  'The installed TUF chain must use the reviewed matcher override, not an unpatched nested copy.');
+const { Targets } = createRequire(tufEntry)('@tufjs/models');
+const targets = Targets.fromJSON({ _type: 'targets', version: 1, spec_version: '1.0.0',
+  expires: '2030-01-01T00:00:00Z', targets: {}, delegations: { keys: {}, roles: [
+    { name: 'synthetic-role', keyids: ['synthetic-key'], threshold: 1,
+      terminating: false, paths: ['packages/*.tgz', 'releases/v[0-9].tgz'] },
+  ] } });
+for (const [path, expected] of [['packages/release.tgz', true], ['releases/v1.tgz', true],
+  ['packages/nested/release.tgz', false], ['other/release.tgz', false], ['packages/release.zip', false],
+  ['releases/va.tgz', false]]) assert.deepEqual([...targets.delegations.rolesForTarget(path)],
+    expected ? [{ role: 'synthetic-role', terminating: false }] : []);
 const report = await compareOpenApi({
   basePath: join(import.meta.dirname, 'base.json'),
   revisionPath: join(import.meta.dirname, 'revision.json'),

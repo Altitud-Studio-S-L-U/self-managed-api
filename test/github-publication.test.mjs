@@ -151,3 +151,13 @@ test('a human branch update stops PR creation and remains intact', async () => {
   assert.equal(state.branchSha, H);
   assert(state.calls.every(call => call.method === 'GET'));
 });
+
+test('a changed head in the created PR response cannot confirm the approved draft', async () => {
+  const { state, adapter } = fixture(); state.branchSha = N;
+  state.mutateResponse = (value, call) => call.method === 'POST' && call.path.endsWith('/pulls')
+    ? { ...value, head: { ...value.head, sha: H } } : value;
+  await assert.rejects(adapter.createDraftPullRequest({ snapshot, baseBranch: 'main', headBranch: branch, commitSha: N,
+    title: 'Fixture PR', body: 'Reviewed fixture', requestId: 'f'.repeat(64), expiresAt: expiry() }), /differs from the approved request/u);
+  assert.equal(state.calls.filter(call => call.method === 'POST').length, 1);
+  assert.equal(state.prs.length, 1, 'The remote write may have completed; rejection must not retry it.');
+});

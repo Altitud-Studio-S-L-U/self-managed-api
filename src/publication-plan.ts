@@ -93,7 +93,7 @@ export async function prepareJobPublicationCandidate(input: JobPublicationOption
     }
     // Reconstruct from immutable job evidence rather than trusting a stored source preview.
     const request = await prepareJobValidation({ statePath: store.statePath, jobId: intent.jobId, enginePath: input.enginePath,
-      recipe: JSON.parse(intent.recipeJson) as unknown, testPaths: intent.testPaths });
+      recipe: JSON.parse(intent.recipeJson) as unknown, testPaths: intent.testPaths, ...(intent.runtime ? { runtime: intent.runtime } : {}) });
     if (request.id !== intent.requestId || request.plan.id !== intent.planId || request.executionDigest !== intent.executionDigest
       || request.policyDigest !== intent.policyDigest) invalid('The validated request changed; review and validate current evidence again.');
     const git = await captureGitEvidence({ consumerRoot: subscription.consumerRoot, gitPath: input.gitPath,

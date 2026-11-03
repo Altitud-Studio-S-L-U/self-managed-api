@@ -32,20 +32,21 @@ pnpm --silent self-managed-api compare \
   fixtures/orders-v1.json fixtures/orders-v2.json \
   --engine work/tools/oasdiff/oasdiff --json</pre>
 <p>En Windows usar <code>work/tools/oasdiff/oasdiff.exe</code>. La fixture ficticia detecta dos cambios y termina con 1. <code>engine:setup</code> descarga oasdiff 1.33.0 desde su release oficial, verifica el SHA-256 fijado y conserva LICENSE. Necesita red y tar. Comparar no descarga el motor automáticamente.</p>
-<table><tr><th>Código CLI</th><th>Interpretación de compare</th></tr><tr><td>0</td><td>No se detectaron cambios estructurales incompatibles.</td></tr><tr><td>1</td><td>Se detectaron cambios incompatibles.</td></tr><tr><td>2</td><td>Entrada inválida o fallo del motor. Leer stderr JSON.</td></tr></table>
-<h2>Otro proyecto consumidor</h2><pre>pnpm pack --pack-destination work/packages
+<p>compare devuelve <strong>0</strong> sin cambios estructurales incompatibles; <strong>1</strong> si los detecta; <strong>2</strong> ante entrada inválida o fallo del motor. Leer stderr JSON.</p>
+<h2>Otro proyecto consumidor</h2>
+<p>Este checkout fija minimatch 11.0.4 bajo @tufjs/models 4.1.1 por <a href="https://github.com/advisories/GHSA-g3hv-75wg-m249">GHSA-g3hv-75wg-m249</a>. La política raíz se aplica al checkout y sus builds CLI; no se hereda al instalar el tarball SDK. Antes de instalarlo, añadir una de estas políticas en la raíz de la aplicación receptora.</p>
+<p>pnpm-workspace.yaml:</p><pre>overrides:
+  '@tufjs/models@4.1.1&gt;minimatch': 11.0.4</pre>
+<p>package.json raíz para npm (combinar con sus campos existentes):</p>
+<pre>{"overrides":{"@tufjs/models@4.1.1":{"minimatch":"11.0.4"}}}</pre>
+<pre>pnpm pack --pack-destination work/packages
 # Desde la aplicación receptora; sustituir la ruta real:
 pnpm add --ignore-scripts /ruta/self-managed-api-0.1.0.tgz
+pnpm why minimatch
 pnpm exec self-managed-api --help</pre>
-<p>El packing compila pero no publica. El archivo SDK no incluye fixtures ni oasdiff. Instalar offline requiere las dependencias en el store local. Usar imports públicos, ESM/NodeNext y tipos de Node; no importar rutas privadas de src o dist.</p>
-<pre>import { compareOpenApi } from 'self-managed-api';
-const report = await compareOpenApi({
-  basePath: '/contracts/before.json',
-  revisionPath: '/contracts/after.json',
-  enginePath: '/opt/self-managed-api/oasdiff',
-});
-console.log(report.status, report.changes);</pre>
-<p>Importar el SDK no abre una base de datos, arranca un worker, instala herramientas o ejecuta el consumidor. Los portables de release incluyen runtime CLI; el SDK instalado en una aplicación mantiene el requisito Node.</p>
+<p>Con npm usar install --ignore-scripts y ls minimatch. Verificar la relación @tufjs/models@4.1.1 → minimatch@11.0.4, conservar el lockfile y ejecutar los tests de la aplicación. Revisar esta política al actualizar TUF; otras copias requieren su propia revisión.</p>
+<p>El packing compila, no publica ni incluye fixtures u oasdiff. Instalar offline requiere dependencias en el store local. Usar imports públicos, ESM/NodeNext y tipos de Node; no rutas privadas de src o dist.</p>
+<p>Importar el SDK no abre una base de datos, arranca un worker, instala herramientas o ejecuta el consumidor. La página siguiente muestra un ejemplo SDK. Los portables de release incluyen runtime CLI; el SDK instalado en una aplicación mantiene el requisito Node.</p>
 <footer><span>Self-managed API - Guía técnica</span><span>2 / 12</span></footer>
 </section>
 
@@ -57,6 +58,11 @@ console.log(report.status, report.changes);</pre>
   --provider-base-url https://api.example.test/v1 \
   --engine /opt/self-managed-api/oasdiff --json</pre>
 <p>Las rutas y dominios de esta guía son ejemplos y deben sustituirse. OpenAPI admite JSON 3.0.x/3.1.x. El análisis JS/TS cubre patrones acotados de fetch nativo y algunas lecturas de respuesta. No equivale a comprender cualquier import, wrapper, SDK, alias o ruta dinámica. Los usos no resueltos y cambios sin correspondencia se conservan para revisión.</p>
+<pre>import { compareOpenApi } from 'self-managed-api';
+const report = await compareOpenApi({
+  basePath: '/contracts/before.json', revisionPath: '/contracts/after.json',
+  enginePath: '/opt/self-managed-api/oasdiff',
+});</pre>
 <h2>Otros contratos y evidencias</h2><table><tr><th>Entrada</th><th>Contrato</th></tr><tr><td>MCP</td><td>Catálogo completo declarado y bindings explícitos de archivo, receiver, servidor y contexto autorizado. Comparar no invoca herramientas.</td></tr><tr><td>JSON Schema</td><td>Seleccionar dirección input/output. La conclusión se limita al perfil estructural admitido.</td></tr><tr><td>Ejemplos JSON</td><td>Detectan diferencias de valores. No establecen campos obligatorios ni compatibilidad.</td></tr><tr><td>Documentación</td><td>Evidencia de texto que puede incluir cambios cosméticos. No autoriza ejecutar código.</td></tr><tr><td>Python / Java</td><td>Fuentes y tests seleccionados explícitamente; sin descubrimiento automático de llamadas.</td></tr></table>
 <pre>self-managed-api mcp-compare before.json after.json --json
 self-managed-api schema-compare before.json after.json \
@@ -136,12 +142,12 @@ self-managed-api runtime prepare maven-junit --output /private/maven.json</pre>
 <section class="page">
 <div class="label">Publicación opcional en GitHub</div>
 <h1>Del resultado a una PR en borrador</h1>
-<p>La publicación es opcional y utiliza el repositorio y las credenciales del usuario. Una aprobación de tests no concede permiso de escritura Git. El adaptador crea una rama y PR en borrador con el cambio exacto revisado; no hace merge ni despliega.</p>
+<p>La publicación es opcional y exige un repositorio privado en github.com, con permiso de escritura, activo y que no sea un fork. No admite destinos públicos ni GitHub Enterprise. Una aprobación de tests no concede escritura Git. El adaptador crea una rama y PR en borrador con el cambio exacto revisado; no hace merge ni despliega.</p>
 <pre>self-managed-api publication-plan INTENT_ID \
   --state /private/self-managed-api-state \
   --git /usr/bin/git --engine /opt/self-managed-api/oasdiff \
   --repository OWNER/REPO --base main --json</pre>
-<p>Este comando construye un candidato local ligado a Git. No contacta GitHub ni comprueba la base remota. El ejecutable Git debe aceptar --no-lazy-fetch para evitar adquisiciones implícitas al inspeccionar objetos.</p>
+<p>Este comando construye un candidato local ligado a Git. No contacta GitHub ni comprueba la base remota o la elegibilidad del destino; publication-review --github verifica ambas antes de aprobar. Git debe aceptar --no-lazy-fetch para evitar adquisiciones implícitas al inspeccionar objetos.</p>
 <h2>Permisos separados</h2><ol><li>Revisar el candidato y las diferencias exactas.</li><li>Preparar la solicitud de publicación mediante el adaptador GitHub, con identidad de autor explícita.</li><li>Confirmar publication-approve para esa solicitud y consumidor.</li><li>Ejecutar publication-publish con el recibo, la solicitud y --github.</li><li>Si el resultado es incierto, reconciliar la misma solicitud antes de intentar otra escritura.</li></ol>
 <p>publication-review, publication-publish y publication-reconcile requieren --github y GH_TOKEN configurado localmente. Conceder únicamente los permisos necesarios para el repositorio y sus PR. Nunca entregar el token en URLs, archivos de ejemplo o argumentos que se registren públicamente.</p>
 <table><tr><th>Código</th><th>Interpretación</th></tr><tr><td>0</td><td>Publicación verificada o resultado completado según el comando.</td></tr><tr><td>1</td><td>Conflicto que requiere revisión.</td></tr><tr><td>2</td><td>Incertidumbre, autorización inválida o fallo. No asumir que no hubo escritura.</td></tr></table>
