@@ -76,6 +76,12 @@ pnpm --silent self-managed-api compare fixtures/orders-v1.json fixtures/orders-v
 
 On Windows, use `work/tools/oasdiff/oasdiff.exe`. This fixture also exits **1**. Engine setup requires network access and `tar`; subsequent local comparisons do not download an engine. JSON Schema and MCP comparisons do not require oasdiff.
 
+### Follow a complete migration
+
+The [English terminal walkthrough](dev/terminal-demo/README.md) takes the included fictional payments integration from a breaking OpenAPI change to a reviewed recipe, baseline/candidate validation and simulated draft PR publication. It includes Linux x64 prerequisites, exact setup commands and the replay fields to inspect.
+
+The fixture forwards the caller's currency, selects the new API version and preserves exact integer minor units. Its expected result is a failing baseline followed by **25 passing candidate tests**, with the selected tests and live consumer unchanged. Test execution uses the real Docker runner; GitHub transport is simulated. The recorder supplies SDK approvals for this fixed fixture, so it does not demonstrate an interactive human review.
+
 ### Use the SDK in another application
 
 Build a local package from the checkout:
@@ -162,6 +168,8 @@ pnpm docs:check
 The documentation build checks page overflow and binds the PDF to the HTML source hash and package version. Keep source and PDF together when their contracts change. Optional development laboratories and their requirements are documented in the guide.
 
 ## Releases and updates
+
+Source releases identify a Git tag. Check out the chosen tag and follow [Quick start](#quick-start) to install dependencies and build the CLI; source archives do not include a Node runtime, `dist`, the comparison engine or Docker images. The package is not distributed through npm.
 
 Run `pnpm release:build` manually to produce a platform archive with its own CLI runtime. Extract the complete directory. Publishing the resulting files is a separate manual action.
 
