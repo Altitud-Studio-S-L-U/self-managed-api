@@ -1,5 +1,9 @@
 # Self-managed API
 
+[![CI](https://github.com/Altitud-Studio-S-L-U/self-managed-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Altitud-Studio-S-L-U/self-managed-api/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Altitud-Studio-S-L-U/self-managed-api/actions/workflows/codeql.yml/badge.svg)](https://github.com/Altitud-Studio-S-L-U/self-managed-api/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Inspect API changes, review their impact, and validate proposed migrations locally.**
 
 A TypeScript SDK, CLI and local worker for maintaining API and MCP integrations. Compare contracts, inspect affected consumer calls, and prepare changes for review. Test execution, model use and GitHub publication have separate approval steps.
@@ -166,6 +170,8 @@ pnpm docs:check
 ```
 
 The documentation build checks page overflow and binds the PDF to the HTML source hash and package version. Keep source and PDF together when their contracts change. Optional development laboratories and their requirements are documented in the guide.
+
+Every pull request runs `pnpm check` and `pnpm docs:check` on Linux, macOS and Windows, the isolated integration suite against the pinned Docker profiles on Linux x64, and a CodeQL scan. Model laboratories, live APIs and GitHub publication are not exercised in CI.
 
 ## Releases and updates
 
