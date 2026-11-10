@@ -8,26 +8,15 @@
 
 A TypeScript SDK, CLI and local worker for maintaining API and MCP integrations. Compare contracts, inspect affected consumer calls, and prepare changes for review. Test execution, model use and GitHub publication have separate approval steps.
 
+## From a breaking change to a reviewed migration
+
+The included fictional payments walkthrough compares API contracts, prepares a consumer change and runs the same tests against baseline and candidate copies. Its expected result is a failing baseline followed by **25 passing candidate tests**. Docker execution is real; GitHub publication is simulated. The recorder supplies approvals for the fixed fixture, so this is not an interactive human-review demo.
+
+[Follow the terminal walkthrough](dev/terminal-demo/README.md), or start below with a local comparison that needs no model, Docker or GitHub credentials.
+
 ```text
-                        LOCAL MAINTENANCE WORKFLOW
-
-  Provider evidence      Consumer source        Reviewed recipe
-  OpenAPI / MCP / JSON   JS / TS / selected      or optional model
-  schemas / documents   Python and Java files   proposal
-          |                    |                      |
-          +-------> compare + inspect <---------------+
-                             |
-                      review decisions
-                             |
-                   approve test execution
-                             |
-                  isolated baseline + candidate
-                             |
-                  approve GitHub publication
-                             |
-                       draft pull request
-
-  Local state and approval receipts remain outside the consumer checkout.
+Provider contract + consumer source → compare and inspect → reviewed proposal
+                                   → approved isolated tests → approved draft PR
 ```
 
 No project account, license token or hosted control server is required. The project is [MIT licensed](LICENSE), and the package is not published to npm.
@@ -82,42 +71,35 @@ On Windows, use `work/tools/oasdiff/oasdiff.exe`. This fixture also exits **1**.
 
 ### Follow a complete migration
 
-The [English terminal walkthrough](dev/terminal-demo/README.md) takes the included fictional payments integration from a breaking OpenAPI change to a reviewed recipe, baseline/candidate validation and simulated draft PR publication. It includes Linux x64 prerequisites, exact setup commands and the replay fields to inspect.
-
-The fixture forwards the caller's currency, selects the new API version and preserves exact integer minor units. Its expected result is a failing baseline followed by **25 passing candidate tests**, with the selected tests and live consumer unchanged. Test execution uses the real Docker runner; GitHub transport is simulated. The recorder supplies SDK approvals for this fixed fixture, so it does not demonstrate an interactive human review.
+The [terminal walkthrough](dev/terminal-demo/README.md) includes Linux x64 prerequisites, exact setup commands and replay fields for the payments example described above. It preserves the selected tests and live consumer while validating separate baseline and candidate copies.
 
 ### Use the SDK in another application
 
-Build a local package from the checkout:
-
-```sh
-pnpm pack --pack-destination work/packages
-```
-
-Before installing the tarball, apply the following dependency policy in the **consuming application's root**. This checkout pins `minimatch` to `11.0.4` only under `@tufjs/models@4.1.1` to address [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). The SDK tarball does not carry the checkout's root override into another application.
-
-For pnpm, merge this into the consumer's `pnpm-workspace.yaml`:
-
-```yaml
-overrides:
-  '@tufjs/models@4.1.1>minimatch': 11.0.4
-```
-
-For npm, merge this into the consumer's root `package.json`:
-
-```json
-{
-  "overrides": {
-    "@tufjs/models@4.1.1": { "minimatch": "11.0.4" }
-  }
-}
-```
-
-Then install the tarball with `pnpm add --ignore-scripts /path/to/self-managed-api-0.1.0.tgz` or `npm install --ignore-scripts /path/to/self-managed-api-0.1.0.tgz`. Verify the resolved chain with `pnpm why minimatch` or `npm ls minimatch`, retain the consumer's lockfile, and run its tests. The intended edge is `@tufjs/models@4.1.1 → minimatch@11.0.4`; other applications may contain additional copies requiring separate review. Reassess this scoped policy when upgrading TUF.
-
-See the [guide](docs/technical-guide.html) for SDK examples, runtime preparation and application-owned approval handling. Checkout installations and CLI release builds use this repository's committed policy and lockfile.
+Build a local tarball and install it in your application. **Before installing, apply the documented consumer-root override for the `@tufjs/models` → `minimatch` dependency:** the checkout's override is not carried into the tarball. The [SDK installation instructions](docs/sdk-installation.md) contain the exact policy, advisory, commands and verification steps.
 
 ## Execution and approval boundaries
+
+```text
+                        LOCAL MAINTENANCE WORKFLOW
+
+  Provider evidence      Consumer source        Reviewed recipe
+  OpenAPI / MCP / JSON   JS / TS / selected      or optional model
+  schemas / documents   Python and Java files   proposal
+          |                    |                      |
+          +-------> compare + inspect <---------------+
+                             |
+                      review decisions
+                             |
+                   approve test execution
+                             |
+                  isolated baseline + candidate
+                             |
+                  approve GitHub publication
+                             |
+                       draft pull request
+
+  Local state and approval receipts remain outside the consumer checkout.
+```
 
 - Inspection and ordinary local worker observation require neither a model nor GitHub credentials.
 - HTTP observation is explicitly enabled; registering a local HTTP policy does not itself fetch a source.
@@ -175,13 +157,7 @@ Every pull request runs `pnpm check` and `pnpm docs:check` on Linux, macOS and W
 
 ## Releases and updates
 
-Source releases identify a Git tag. Check out the chosen tag and follow [Quick start](#quick-start) to install dependencies and build the CLI; source archives do not include a Node runtime, `dist`, the comparison engine or Docker images. The package is not distributed through npm.
-
-Run `pnpm release:build` manually to produce a platform archive with its own CLI runtime. Extract the complete directory. Publishing the resulting files is a separate manual action.
-
-Optional native signing and public TUF signing use operator-provisioned keys and retain explicit signature status. Checksums alone do not establish publisher identity. The updater stages a verified package; installation remains separate. No official hosted update feed or trust identity is bundled.
-
-See the [technical guide](docs/technical-guide.html) for release inputs, platform requirements, service operation and trust bootstrap.
+The package is not published to npm. Source releases require a local build; platform archives are produced separately with their own CLI runtime. Signing and update trust require operator-provisioned keys, and no official hosted update feed is bundled. See [release installation, signing and update boundaries](docs/releases.md).
 
 ## Contributing
 
