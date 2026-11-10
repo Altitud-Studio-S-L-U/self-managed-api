@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Windows runs the native-permission checks serially and needs the larger budget.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      # Corepack runs the pnpm release pinned in package.json (packageManager), without a third-party setup action.
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm engine:setup
+      - run: pnpm check
+      - run: pnpm docs:check
+
+  isolated-validation:
+    name: isolated validation (Linux x64, Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm engine:setup
+      # Explicit trusted setup of the pinned profiles; validation itself runs with --pull=never.
+      - run: docker pull node@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd
+      - run: docker pull python@sha256:f040863673aea2570c3ff6a5c3fb4c673a016cbc5375005ad145915922b6b78a
+      - run: docker pull eclipse-temurin@sha256:51ae87bbb1949c1afdff51f6a3e6c5f283d84a4bd68512c9657fdc6605026a49
+      - run: pnpm build
+      - run: node tooling/prepare-validation-runtime.mjs pytest work/audit/pytest-runtime.json
+      - run: node tooling/prepare-validation-runtime.mjs maven-junit work/audit/maven-junit-runtime.json
+      - run: pnpm test:isolated
