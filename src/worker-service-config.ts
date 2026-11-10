@@ -95,7 +95,18 @@ export interface WorkerServiceManifestOptions {
 const xml = (value: string): string => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
 // systemd performs its own quoting/specifier/environment expansion; it never runs a shell here.
 const systemd = (value: string, environment = false): string => `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('%', '%%').replaceAll('$', () => environment ? '$$' : '$')}"`;
-const windowsArgument = (value: string): string => `"${value.replace(/(\\*)"/gu, '$1$1\\"').replace(/\\+$/gu, '$&$&')}"`;
+// CommandLineToArgvW rules: backslashes are literal unless they precede a quote or close the argument.
+// One linear pass; a regular expression over runs of backslashes is quadratic on long runs.
+const windowsArgument = (value: string): string => {
+  let quoted = '"';
+  let backslashes = 0;
+  for (const character of value) {
+    if (character === '\\') { backslashes += 1; continue; }
+    quoted += '\\'.repeat(character === '"' ? backslashes * 2 + 1 : backslashes) + character;
+    backslashes = 0;
+  }
+  return `${quoted}${'\\'.repeat(backslashes * 2)}"`;
+};
 
 export function renderWorkerServiceManifest(options: WorkerServiceManifestOptions): string {
   if (!['systemd', 'launchd', 'windows'].includes(options.target)) invalid('Choose systemd, launchd or windows.');
