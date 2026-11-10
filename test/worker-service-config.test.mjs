@@ -119,6 +119,8 @@ test('Windows manifest uses a passwordless low-privilege SCM account, bounded si
     cliPath: 'C:\\Program Files\\Self-managed API\\cli.js', nodePath: 'C:\\Program Files\\nodejs\\node.exe', user: undefined });
   assert.match(content, /<domain>NT AUTHORITY<\/domain><user>LocalService<\/user>/);
   assert.match(content, /&quot;C:\\Self-managed API &amp; data\\worker\.json&quot;/);
+  assert.ok(content.includes('<arguments>&quot;C:\\Program Files\\Self-managed API\\cli.js&quot; &quot;worker-service&quot; &quot;run&quot; '
+    + '&quot;--config&quot; &quot;C:\\Self-managed API &amp; data\\worker.json&quot;</arguments>'));
   assert.match(content, /<arguments>.*&quot;run&quot;/);
   assert.match(content, /<stoptimeout>180 sec<\/stoptimeout>/);
   assert.match(content, /<sizeThreshold>1024<\/sizeThreshold><keepFiles>2<\/keepFiles>/);

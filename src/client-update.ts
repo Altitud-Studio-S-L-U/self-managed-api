@@ -8,6 +8,7 @@ import { Updater } from 'tuf-js';
 import { ReleaseFetcher, releaseBaseUrl, UPDATE_ARTIFACT_LIMIT, UPDATE_METADATA_LIMIT } from './client-update-fetcher.js';
 import { CLIENT_UPDATE_REASONS, ClientUpdateError, type ClientUpdateReason } from './client-update-errors.js';
 import type { PublicAddress } from './public-network.js';
+import { readRegularFileSync } from './regular-file.js';
 import { checkServicePath, checkWindowsServiceAcl } from './worker-service-state.js';
 import { servicePath } from './worker-service-config.js';
 
@@ -87,11 +88,7 @@ function release(input: unknown): ClientRelease {
 }
 function localBytes(path: string, maximum: number): Buffer {
   checkServicePath(path, 'secret');
-  const attributes = lstatSync(path);
-  if (attributes.size < 1 || attributes.size > maximum) invalid();
-  const bytes = readFileSync(path);
-  if (bytes.length > maximum) invalid();
-  return bytes;
+  return readRegularFileSync(path, { maxBytes: maximum, minBytes: 1, singleLink: true }, invalid);
 }
 function status(input: unknown): ClientUpdateStatus {
   const value = record(input, ['schemaVersion', 'state', 'reason', 'currentVersion', 'checkedAt', 'release', 'artifactPath', 'installation']);
@@ -189,10 +186,8 @@ async function update(options: ClientUpdateOptions, dependencies: ClientUpdateDe
     const rootSha = sha(repository.rootSha256);
     const rootPath = servicePath(repository.rootPath, process.platform === 'win32' ? 'windows' : 'systemd');
     checkServicePath(rootPath, 'config'); checkWindowsServiceAcl(rootPath, false);
-    const rootInfo = lstatSync(rootPath);
-    if (rootInfo.size < 1 || rootInfo.size > 512_000) invalid();
-    const root = readFileSync(rootPath);
-    if (root.length > 512_000 || digest(root) !== rootSha) invalid();
+    const root = readRegularFileSync(rootPath, { maxBytes: 512_000, minBytes: 1, singleLink: true }, invalid);
+    if (digest(root) !== rootSha) invalid();
     directory = privateDirectory(input.statePath as string);
     db = await database(directory); activeTransaction = true;
     const policy = digest(JSON.stringify({ metadataUrl, targetsUrl, rootSha, channel: 'stable' }));
@@ -223,9 +218,8 @@ async function update(options: ClientUpdateOptions, dependencies: ClientUpdateDe
       for (const name of readdirSync(metadataDirectory)) {
         if (!metadataNames.includes(name as typeof metadataNames[number])) invalid();
         const file = join(metadataDirectory, name);
-        const info = lstatSync(file);
-        if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size > UPDATE_METADATA_LIMIT) invalid();
-        const bytes = readFileSync(file); JSON.parse(bytes.toString('utf8'));
+        const bytes = readRegularFileSync(file, { maxBytes: UPDATE_METADATA_LIMIT, singleLink: true }, invalid);
+        JSON.parse(bytes.toString('utf8'));
         db!.prepare('INSERT INTO metadata VALUES(?,?) ON CONFLICT(name) DO UPDATE SET bytes=excluded.bytes').run(name, bytes);
       }
     };

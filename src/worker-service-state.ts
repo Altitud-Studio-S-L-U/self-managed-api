@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { accessSync, constants, closeSync, existsSync, lstatSync, openSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, closeSync, existsSync, lstatSync, openSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, parse, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import type { DatabaseSync } from 'node:sqlite';
 import { PlumberError } from './errors.js';
+import { readRegularFileSync } from './regular-file.js';
 import { checkWindowsPermissions } from './windows-permissions.js';
 
 function invalid(message: string): never { throw new PlumberError('INVALID_INPUT', message); }
@@ -82,6 +83,7 @@ export function writeServiceSnapshot(directory: string, filename: string, value:
     checkWindowsPermissions([directory, path, temporary], true);
     try { accessSync(path, constants.W_OK); accessSync(temporary, constants.W_OK); }
     catch { throw error; }
+    const changed = (): never => invalid('Service snapshot changed during atomic replacement.');
     // The fixed wait budget starts after the separately bounded native ACL check.
     const until = performance.now() + 1000;
     const pause = new Int32Array(new SharedArrayBuffer(4));
@@ -90,7 +92,7 @@ export function writeServiceSnapshot(directory: string, filename: string, value:
       const current = lstatSync(path, { bigint: true }), next = lstatSync(temporary, { bigint: true }), container = lstatSync(directory, { bigint: true });
       if (current.dev !== previous.dev || current.ino !== previous.ino || next.dev !== staged!.dev || next.ino !== staged!.ino
         || container.dev !== parent!.dev || container.ino !== parent!.ino || !container.isDirectory() || container.isSymbolicLink()
-        || readFileSync(temporary, 'utf8') !== bytes) invalid('Service snapshot changed during atomic replacement.');
+        || readRegularFileSync(temporary, { maxBytes: Buffer.byteLength(bytes), singleLink: true }, changed).toString('utf8') !== bytes) changed();
       try { renameSync(temporary, path); return; }
       catch (attempt) {
         if (!['EPERM', 'EACCES'].includes((attempt as NodeJS.ErrnoException).code ?? '')) throw attempt;
@@ -116,8 +118,9 @@ export function appendServiceLog(directory: string, value: unknown): void {
 export function readServiceRecord(directory: string, filename: string): unknown {
   const path = join(directory, filename);
   if (!assertRegularIfPresent(path)) return undefined;
-  if (statSync(path).size > 16_384) invalid('Service runtime record exceeds its fixed limit.');
-  return JSON.parse(readFileSync(path, 'utf8')) as unknown;
+  const bytes = readRegularFileSync(path, { maxBytes: 16_384, singleLink: true },
+    () => invalid('Service runtime record changed or exceeds its fixed limit.'));
+  return JSON.parse(bytes.toString('utf8')) as unknown;
 }
 
 /** A separate SQLite exclusive transaction is released by the OS on crash; it does not block subscription databases. */

@@ -1,0 +1,9 @@
+name: self-managed-api
+# The package ships dist and tooling/prepare-validation-runtime.mjs (package.json "files"). Test suites, fixture
+# consumers and developer laboratories never reach users; src and every maintainer tool, including release
+# signing, stay in scope.
+paths-ignore:
+  - test
+  - integration
+  - fixtures
+  - dev

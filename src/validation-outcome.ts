@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { lstat, open, realpath, type FileHandle } from 'node:fs/promises';
 import { join, parse, resolve, sep } from 'node:path';
 import { isProxy } from 'node:util/types';
 import type { DockerValidationResult } from './docker-runner.js';
@@ -171,13 +171,21 @@ async function directory(value: string): Promise<string> {
 }
 
 async function readJson(path: string, maxBytes: number): Promise<unknown> {
-  const attributes = await lstat(path);
-  if (attributes.isSymbolicLink() || !attributes.isFile()) invalid('Validation artifacts must be regular files without symbolic links.');
+  const linked = (): never => invalid('Validation artifacts must be regular files without symbolic links.');
+  // Open before inspecting, so the checks describe the file that is read. Windows has no O_NOFOLLOW and opens
+  // through a link, so the path must still name the opened file afterwards.
   const flags = constants.O_RDONLY | (process.platform === 'win32' ? 0 : constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  const handle = await open(path, flags);
+  let handle: FileHandle;
+  try { handle = await open(path, flags); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOOP') linked();
+    throw error;
+  }
   try {
-    const opened = await handle.stat();
-    if (!opened.isFile() || opened.size > maxBytes) invalid('Validation artifact is not a bounded regular file.');
+    const opened = await handle.stat({ bigint: true });
+    const entry = await lstat(path, { bigint: true });
+    if (!opened.isFile() || entry.isSymbolicLink() || entry.dev !== opened.dev || entry.ino !== opened.ino) linked();
+    if (opened.size > BigInt(maxBytes)) invalid('Validation artifact is not a bounded regular file.');
     const bytes = Buffer.alloc(maxBytes + 1);
     let length = 0;
     for (;;) {
